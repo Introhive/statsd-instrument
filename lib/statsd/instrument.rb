@@ -314,12 +314,12 @@ module StatsD
     type = (!metric_options.empty? && metric_options.first[:as_dist] ? :d : :ms)
 
     result = nil
+    start = StatsD::Instrument.current_timestamp
     begin
-      start = StatsD::Instrument.current_timestamp
       result = block.call if block_given?
     ensure
       # Ensure catches both a raised exception and a return in the invoked block
-      value = 1000 * (StatsD::Instrument.current_timestamp - start)
+      value = 1000 * (StatsD::Instrument.current_timestamp - start) if block_given?
       metric = collect_metric(type, key, value, metric_options)
       result = metric unless block_given?
     end
@@ -385,11 +385,11 @@ module StatsD
     value, metric_options = parse_options(value, metric_options)
 
     result = nil
+    start = StatsD::Instrument.current_timestamp
     begin
-      start = StatsD::Instrument.current_timestamp
       result = block.call if block_given?
     ensure
-      value = 1000 * (StatsD::Instrument.current_timestamp - start)
+      value = 1000 * (StatsD::Instrument.current_timestamp - start) if block_given?
       metric = collect_metric(:d, key, value, metric_options)
       result = metric unless block_given?
     end
