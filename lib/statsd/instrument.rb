@@ -58,18 +58,21 @@ module StatsD
 
     if Process.respond_to?(:clock_gettime)
       # @private
-      def self.duration
-        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        yield
-        Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+      def self.current_timestamp
+        Process.clock_gettime(Process::CLOCK_MONOTONIC)
       end
     else
       # @private
-      def self.duration
-        start = Time.now
-        yield
-        Time.now - start
+      def self.current_timestamp
+        Time.now
       end
+    end
+
+    # @private
+    def self.duration
+      start = StatsD::Instrument.current_timestamp
+      yield
+      StatsD::Instrument.current_timestamp - start
     end
 
     # Adds execution duration instrumentation to a method as a timing.
@@ -311,9 +314,16 @@ module StatsD
     type = (!metric_options.empty? && metric_options.first[:as_dist] ? :d : :ms)
 
     result = nil
-    value  = 1000 * StatsD::Instrument.duration { result = block.call } if block_given?
-    metric = collect_metric(type, key, value, metric_options)
-    result = metric unless block_given?
+    begin
+      start = StatsD::Instrument.current_timestamp
+      result = block.call if block_given?
+    ensure
+      # Ensure catches both a raised exception and a return in the invoked block
+      value = 1000 * (StatsD::Instrument.current_timestamp - start)
+      metric = collect_metric(type, key, value, metric_options)
+      result = metric unless block_given?
+    end
+
     result
   end
 
@@ -373,10 +383,17 @@ module StatsD
   #      end
   def distribution(key, value=nil, *metric_options, &block)
     value, metric_options = parse_options(value, metric_options)
+
     result = nil
-    value  = 1000 * StatsD::Instrument.duration { result = block.call } if block_given?
-    metric = collect_metric(:d, key, value, metric_options)
-    result = metric unless block_given?
+    begin
+      start = StatsD::Instrument.current_timestamp
+      result = block.call if block_given?
+    ensure
+      value = 1000 * (StatsD::Instrument.current_timestamp - start)
+      metric = collect_metric(:d, key, value, metric_options)
+      result = metric unless block_given?
+    end
+
     result
   end
 

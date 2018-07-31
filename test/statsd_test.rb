@@ -70,6 +70,40 @@ class StatsDTest < Minitest::Test
     assert_nil return_value
   end
 
+  def test_statsd_measure_with_return_in_block_still_captures
+    StatsD::Instrument.stubs(:current_timestamp).returns(5.0, 6.12)
+    result = nil
+    metric = capture_statsd_call do
+      lambda = -> do
+        StatsD.measure('values.foobar') { return 'from lambda'}
+      end
+
+      result = lambda.call
+    end
+
+    assert_equal 'from lambda', result
+    assert_equal 1120.0, metric.value
+  end
+
+  def test_statsd_measure_with_exception_in_block_still_captures
+    StatsD::Instrument.stubs(:current_timestamp).returns(5.0, 6.12)
+    result = nil
+    metric = capture_statsd_call do
+      lambda = -> do
+        StatsD.measure('values.foobar') { raise 'from lambda'}
+      end
+
+      begin
+        result = lambda.call
+      rescue
+      end
+
+    end
+
+    assert_nil result
+    assert_equal 1120.0, metric.value
+  end
+
   def test_statsd_increment
     result = nil
     metric = capture_statsd_call { result = StatsD.increment('values.foobar', 3) }
@@ -153,6 +187,42 @@ class StatsDTest < Minitest::Test
     metric = capture_statsd_call do
       StatsD.distribution('values.foobar') { 'foo' }
     end
+    assert_equal :d, metric.type
+    assert_equal 1120.0, metric.value
+  end
+
+  def test_statsd_distribution_with_return_in_block_still_captures
+    StatsD::Instrument.stubs(:current_timestamp).returns(5.0, 6.12)
+    result = nil
+    metric = capture_statsd_call do
+      lambda = -> do
+        StatsD.distribution('values.foobar') { return 'from lambda'}
+      end
+
+      result = lambda.call
+    end
+
+    assert_equal 'from lambda', result
+    assert_equal :d, metric.type
+    assert_equal 1120.0, metric.value
+  end
+
+  def test_statsd_distribution_with_exception_in_block_still_captures
+    StatsD::Instrument.stubs(:current_timestamp).returns(5.0, 6.12)
+    result = nil
+    metric = capture_statsd_call do
+      lambda = -> do
+        StatsD.distribution('values.foobar') { raise 'from lambda'}
+      end
+
+      begin
+        result = lambda.call
+      rescue
+      end
+
+    end
+
+    assert_nil result
     assert_equal :d, metric.type
     assert_equal 1120.0, metric.value
   end
